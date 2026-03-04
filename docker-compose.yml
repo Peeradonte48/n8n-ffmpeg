@@ -1,0 +1,84 @@
+services:
+  # --- Traefik (Reverse Proxy & SSL) ---
+  traefik:
+    image: "traefik"
+    restart: always
+    command:
+      - "--api=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.mytlschallenge.acme.tlschallenge=true"
+      - "--certificatesresolvers.mytlschallenge.acme.email=${SSL_EMAIL}"
+      - "--certificatesresolvers.mytlschallenge.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - traefik_data:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # --- n8n (Workflow Automation) ---
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "127.0.0.1:5678:5678"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.tls.certresolver=mytlschallenge"
+      - "traefik.http.middlewares.n8n.headers.SSLRedirect=true"
+      - "traefik.http.middlewares.n8n.headers.STSSeconds=315360000"
+      - "traefik.http.middlewares.n8n.headers.browserXSSFilter=true"
+      - "traefik.http.middlewares.n8n.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.n8n.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.n8n.headers.SSLHost=${DOMAIN_NAME}"
+      - "traefik.http.middlewares.n8n.headers.STSIncludeSubdomains=true"
+      - "traefik.http.middlewares.n8n.headers.STSPreload=true"
+      - "traefik.http.routers.n8n.middlewares=n8n@docker"
+    environment:
+      - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - TZ=Asia/Bangkok
+      - GENERIC_TIMEZONE=Asia/Bangkok
+      - NODE_ENV=production
+      - N8N_ALLOW_FILE_ACCESS_PATTERN=*
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
+      - NODES_EXCLUDE=[]
+      - N8N_ALLOW_EXECUTE_COMMANDS=true
+      - N8N_ENABLE_FILE_ACCESS=true
+      - N8N_FILESYSTEM_PATH_WHITELIST=/data
+      - N8N_RUNNERS_ENABLED=false
+      - WEBHOOK_URL=https://neymar-phagocytolytic-dorothea.ngrok-free.dev/
+      - N8N_EDITOR_BASE_URL=https://neymar-phagocytolytic-dorothea.ngrok-free.dev/
+      - N8N_N8N_FILESYSTEM_ROOT=/data
+      - N8N_RESTRICT_FILE_ACCESS_TO=/data
+      - N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./data:/data
+
+  # --- ngrok (Secure Local Tunnel Sidecar) ---
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: always
+    command: http n8n:5678 --domain=neymar-phagocytolytic-dorothea.ngrok-free.dev
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    depends_on:
+      - n8n
+
+volumes:
+  traefik_data:
+  n8n_data:

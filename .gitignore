@@ -1,0 +1,21 @@
+# Environment variables
+.env
+
+# Database files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Log files
+*.log
+
+# n8n data directories
+binaryData/
+data/
+
+# Binaries
+*.exe
+
+# Sensitive files
+ngrok Login.txt
+config
