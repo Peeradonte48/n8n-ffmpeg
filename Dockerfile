@@ -1,4 +1,4 @@
-FROM n8nio/n8n:2.10.2
+FROM n8nio/n8n:2.10.3
 USER root
 # 0) Restore apk into the image (n8n image is Alpine but apk may be removed)
 RUN set -eux; \
